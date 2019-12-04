@@ -47,11 +47,16 @@ function fraction(token) {
         return (Number.isNaN(n) ? undefined : [n, 1]);
     }
     const [_, __, n1, ___, n2, n3] = match;
-    let denominator = Number(n3 || 1);
+
+    const whole       = Number(n1 || 0);
+    let numerator     = Number(n2 || 0);
+    const denominator = Number(n3 || 1);
+
     if (denominator === 0) {
         return undefined;
     }
-    let numerator   = (Number(n1 || 0) * denominator) + Number(n2 || 0);
+
+    numerator = (whole * denominator) + (((whole < 0) || (n1 === '-0')) ? -numerator : numerator);
     return gcdFraction([numerator, denominator]);
 }
 
@@ -60,7 +65,20 @@ function fraction(token) {
  */
 function add (a, b) {
     const [numA, denA, numB, denB] = [...a, ...b];
-    return gcdFraction([((numA * denB) + (numB * denA)), (denA * denB)]);
+
+    if (denA === denB) {
+        return gcdFraction([(numA + numB), denA]);
+    }
+
+    const g = gcd(denA, denB);
+
+    if (g === denA) {
+        return add([(numA * (denB / denA)), denB], b);
+    } else if (g === denB) {
+        return add(a, [(numB * (denA / denB)), denA]);
+    } else {
+        return gcdFraction([((numA * denB) + (numB * denA)), (denA * denB)]);
+    }
 }
 
 /**
@@ -75,10 +93,14 @@ function sub (a, b) {
  */
 function normalizeFraction(fraction) {
     const [numerator, denominator] = fraction;
-    return (denominator === 1)         ? String(numerator) :
-           (numerator === denominator) ? '1' :
-           (numerator <   denominator) ? `${numerator}/${denominator}` :
-                                         `${parseInt(numerator / denominator)}_${(numerator % denominator)}/${denominator}`;
+    const reminder = (numerator % denominator);
+
+    return ((numerator   === 0)                 ? String(0) :
+            (denominator === 1)                 ? String(numerator) :
+            (numerator === denominator)         ? '1' :
+            (Math.abs(numerator) < denominator) ? `${numerator}/${denominator}` :
+            (reminder === 0)                    ? String(numerator / denominator) :
+              `${parseInt(numerator / denominator)}_${Math.abs(numerator % denominator)}/${denominator}`);
 }
 
 /**
