@@ -3,7 +3,8 @@
 const readline = require('readline').createInterface({input: process.stdin, output: process.stdout});
 const NodeVersion = ((process.versions.node || '').split('.') || [])[0] || 0;
 const DevNodeVersion = 13;
-const FractionRegex = /^((\d+)_)?(\d+)\/(\d+)$/;
+// 3/8, -7/11, 3_2/7, -5_12/17
+const FractionRegex = /^((-?\d+?)_)?((-?\d+?)\/(\d+?))?$/;
 const Operators = {
     '+': add,
     '-': sub
@@ -30,23 +31,27 @@ function gcd(a, b) {
  * Simplifies the fraction by dividing both numerator and denominator by their corresponding gcd (Greatest Common Divisor)
  */
 function gcdFraction(fraction) {
-    let [numerator, denominator] = fraction;
+    const [numerator, denominator] = fraction;
     const g = Math.abs(gcd(numerator, denominator));
     return [numerator / g, denominator / g];
 }
 
 /**
  * Converts a token to fraction
- * @return number[] array - [numerator, denominator]
+ * @return number[] array - [numerator, denominator] or undefined if token provided isn't a valid fraction
  */
 function fraction(token) {
     const match = token.match(FractionRegex);
     if (! match) {
+        const n = Number(token);
+        return (Number.isNaN(n) ? undefined : [n, 1]);
+    }
+    const [_, __, n1, ___, n2, n3] = match;
+    let denominator = Number(n3 || 1);
+    if (denominator === 0) {
         return undefined;
     }
-    const [_, __, n1, n2, n3] = match;
-    let denominator = Number(n3);
-    let numerator   = ((n1 ? Number(n1) : 0) * denominator) + Number(n2);
+    let numerator   = (Number(n1 || 0) * denominator) + Number(n2 || 0);
     return gcdFraction([numerator, denominator]);
 }
 
@@ -63,6 +68,17 @@ function add (a, b) {
  */
 function sub (a, b) {
     return add(a, [-b[0], b[1]]);
+}
+
+/**
+ * Normalizes the fraction (by extracting its whole part) and converts it to String
+ */
+function normalizeFraction(fraction) {
+    const [numerator, denominator] = fraction;
+    return (denominator === 1)         ? String(numerator) :
+           (numerator === denominator) ? '1' :
+           (numerator <   denominator) ? `${numerator}/${denominator}` :
+                                         `${parseInt(numerator / denominator)}_${(numerator % denominator)}/${denominator}`;
 }
 
 /**
@@ -123,7 +139,7 @@ function calculate(expression) {
     }
 
     return (error                ? error :
-            (stack.length === 1) ? stack.pop() :
+            (stack.length === 1) ? normalizeFraction(stack.pop()) :
                                    invalidExpression);
 }
 
