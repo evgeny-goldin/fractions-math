@@ -10,6 +10,8 @@ const Operators = {
     '-': sub
 };
 
+const {Tests} = require('./tests');
+
 if (NodeVersion < DevNodeVersion) {
     console.warn(` -=-= This application was developed and tested using Node.js ${DevNodeVersion} - ` +
                  `but your Node version is ${process.versions.node} =-=-`);
@@ -89,9 +91,9 @@ function sub (a, b) {
 }
 
 /**
- * Normalizes the fraction (by extracting its whole part) and converts it to String
+ * Converts the fraction to String
  */
-function normalizeFraction(fraction) {
+function toString(fraction) {
     const [numerator, denominator] = fraction;
     const reminder = (numerator % denominator);
 
@@ -104,15 +106,17 @@ function normalizeFraction(fraction) {
 }
 
 /**
- * Calculates the expression and returns the result
+ * Evaluates the expression and returns the result as normalized fraction,
+ * or an error message if fails to evaluate the expression
  */
-function calculate(expression) {
-    if (! expression.trim()) {
-        return '';
-    }
+function evaluate(expression) {
+    // noinspection AssignmentToFunctionParameterJS
+    expression = (expression || '').trim();
+
+    if (! expression) { return ''; }
 
     const invalidExpression = `Expression "${expression}" is invalid`;
-    const tokens = (expression || '').trim().split(/\s+/);
+    const tokens = expression.split(/\s+/);
 
     if ((tokens.length % 2) === 0) {
         // "$ 2 3", "$ 2 +", "$ + 3"
@@ -155,21 +159,47 @@ function calculate(expression) {
             stack.push(f);
         } else {
             // "$ 4 + 5 6 7"
-            error = `${invalidExpression} - there is a missing operator between previous result "${stack.pop()}" and operand "${f}"`;
+            error = `${invalidExpression} - there is a missing operator between ` +
+                    `previous result "${toString(stack.pop())}" and operand "${toString(f)}"`;
             break;
         }
     }
 
     return (error                ? error :
-            (stack.length === 1) ? normalizeFraction(stack.pop()) :
+            (stack.length === 1) ? toString(stack.pop()) :
                                    invalidExpression);
 }
 
+/**
+ * Runs all tests and throws an error when any test fails
+ */
+function runTests() {
+    const expressions = Object.keys(Tests);
+    const time = new Date();
+    expressions.forEach((expression) => {
+        const expectedResult = Tests[expression];
+        const result         = evaluate(expression);
+        if (result === expectedResult) {
+            process.stdout.write('.');
+        } else {
+            throw new Error(`Failed test: eval("${expression}") = "${result}" and not "${expectedResult}"`);
+        }
+    });
+
+    console.log(`\n${expressions.length} test${(expressions.length === 1) ? '' : 's'} ` +
+                `completed in ${(new Date() - time)} ms`);
+}
+
+/**
+ * REPL loop: reads user expression, evaluates it and displays the result
+ */
 function readNextExpression() {
-    readline.question('Enter your expression as "3/7 + 3_4/5 + 11/9" or press Ctrl+C to end your session $ ', (expression) => {
-        console.log(calculate(expression));
+    readline.question('Enter your expression as "1 + -3/7 + 3_4/5 - 11/9" or press Ctrl+C to end your session $ ',
+                      (expression) => {
+        console.log(evaluate(expression));
         readNextExpression();
     });
 }
 
+runTests();
 readNextExpression();
