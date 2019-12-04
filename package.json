@@ -5,13 +5,7 @@
   "scripts": {
     "go": "node src/index.js"
   },
-  "devDependencies": {
-    "aws-sdk": "^2.583.0",
-    "axios": "^0.19.0",
-    "jest": "^24.9.0",
-    "lodash": "^4.17.15",
-    "lru-cache": "^5.1.1"
-  },
+  "devDependencies": {},
   "dependencies": {},
   "main": "index.js",
   "keywords": [],
