@@ -3,30 +3,71 @@
 const readline = require('readline').createInterface({input: process.stdin, output: process.stdout});
 const NodeVersion = ((process.versions.node || '').split('.') || [])[0] || 0;
 const DevNodeVersion = 13;
+const FractionRegex = /^((\d+)_)?(\d+)\/(\d+)$/;
 const Operators = {
-  '*': [(a, b) => true,      (a, b) => a * b],
-  '/': [(a, b) => (b !== 0), (a, b) => a / b],
-  '+': [(a, b) => true,      (a, b) => a + b],
-  '-': [(a, b) => true,      (a, b) => a - b]
+    '+': add,
+    '-': sub
 };
+
+if (NodeVersion < DevNodeVersion) {
+    console.warn(` -=-= This application was developed and tested using Node.js ${DevNodeVersion} - ` +
+                 `but your Node version is ${process.versions.node} =-=-`);
+}
 
 readline.on('close', () => {
     console.log('\n-=-= Bye! =-=-');
     readline.close();
 });
 
-if (NodeVersion < DevNodeVersion) {
-    console.warn(` -=-= Warning: this application was developed and tested using Node.js ${DevNodeVersion} - ` +
-                 `but your Node version is ${process.versions.node} =-=-`);
+/**
+ * Calculates the gcd between the two numbers
+ */
+function gcd(a, b) {
+    return ((b === 0) ? a : gcd(b, a % b));
 }
 
 /**
- * Converts a token to number
+ * Simplifies the fraction by dividing both numerator and denominator by their corresponding gcd (Greatest Common Divisor)
  */
-function number(token) {
-    return Number(token);
+function gcdFraction(fraction) {
+    let [numerator, denominator] = fraction;
+    const g = Math.abs(gcd(numerator, denominator));
+    return [numerator / g, denominator / g];
 }
 
+/**
+ * Converts a token to fraction
+ * @return number[] array - [numerator, denominator]
+ */
+function fraction(token) {
+    const match = token.match(FractionRegex);
+    if (! match) {
+        return undefined;
+    }
+    const [_, __, n1, n2, n3] = match;
+    let denominator = Number(n3);
+    let numerator   = ((n1 ? Number(n1) : 0) * denominator) + Number(n2);
+    return gcdFraction([numerator, denominator]);
+}
+
+/**
+ * Adds two fractions
+ */
+function add (a, b) {
+    const [numA, denA, numB, denB] = [...a, ...b];
+    return gcdFraction([((numA * denB) + (numB * denA)), (denA * denB)]);
+}
+
+/**
+ * Subtracts two fractions
+ */
+function sub (a, b) {
+    return add(a, [-b[0], b[1]]);
+}
+
+/**
+ * Calculates the expression and returns the result
+ */
 function calculate(expression) {
     if (! expression.trim()) {
         return '';
@@ -36,7 +77,7 @@ function calculate(expression) {
     const tokens = (expression || '').trim().split(/\s+/);
 
     if ((tokens.length % 2) === 0) {
-        // "$ 2 3", "$ 2 *", "$ - 3"
+        // "$ 2 3", "$ 2 +", "$ + 3"
         return `${invalidExpression} - expected odd number of tokens but received ${tokens.length}`;
     }
 
@@ -47,12 +88,12 @@ function calculate(expression) {
     for (const token of tokens) {
         if (token in Operators) {
             if (stack.length < 1) {
-                // "$ * 5 5"
+                // "$ + 5 5"
                 error = `${invalidExpression} - there is a missing first operand before operator "${token}"`;
                 break;
             }
             if (operator) {
-                // "$ 1 * +"
+                // "$ 1 + +"
                 error = `${invalidExpression} - there is a missing operand between two operators "${operator}" and "${token}"`;
                 break;
             }
@@ -61,26 +102,22 @@ function calculate(expression) {
             continue;
         }
 
-        const b = number(token);
+        const f = fraction(token);
+
+        if (! f) {
+            // "$ 1/3 + something"
+            error = `${invalidExpression} - "${token}" is neither a known operator nor a valid fraction operand`;
+            break;
+        }
 
         if (operator) {
-            const a        = stack.pop();
-            const validate = Operators[operator][0];
-            const execute  = Operators[operator][1];
-
-            if (! validate(a, b)) {
-                // "$ 4 / 0"
-                error = `${invalidExpression} - operands "${a}" and "${b}" are not valid for operator "${operator}"`;
-                break;
-            }
-
-            stack.push(execute(a, b));
+            stack.push(Operators[operator](stack.pop(), f));
             operator = undefined;
        } else if (stack.length < 1) {
-            stack.push(b);
+            stack.push(f);
         } else {
-            // "$ 4 * 5 6 7"
-            error = `${invalidExpression} - there is a missing operator between previous result "${stack.pop()}" and operand "${b}"`;
+            // "$ 4 + 5 6 7"
+            error = `${invalidExpression} - there is a missing operator between previous result "${stack.pop()}" and operand "${f}"`;
             break;
         }
     }
@@ -91,7 +128,7 @@ function calculate(expression) {
 }
 
 function readNextExpression() {
-    readline.question('Enter your expression as "3/7 * 3_4/5" or press Ctrl+C to end your session $ ', (expression) => {
+    readline.question('Enter your expression as "3/7 + 3_4/5 + 11/9" or press Ctrl+C to end your session $ ', (expression) => {
         console.log(calculate(expression));
         readNextExpression();
     });
