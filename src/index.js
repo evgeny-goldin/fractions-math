@@ -95,13 +95,13 @@ function sub (a, b) {
  */
 function toString(fraction) {
     const [numerator, denominator] = fraction;
-    const reminder = (numerator % denominator);
+    const remainder = (numerator % denominator);
 
     return ((numerator   === 0)                 ? String(0) :
             (denominator === 1)                 ? String(numerator) :
             (numerator === denominator)         ? '1' :
             (Math.abs(numerator) < denominator) ? `${numerator}/${denominator}` :
-            (reminder === 0)                    ? String(numerator / denominator) :
+            (remainder === 0)                   ? String(numerator / denominator) :
               `${parseInt(numerator / denominator)}_${Math.abs(numerator % denominator)}/${denominator}`);
 }
 
@@ -176,6 +176,7 @@ function evaluate(expression) {
 function runTests() {
     const expressions = Object.keys(Tests);
     const time = new Date();
+
     expressions.forEach((expression) => {
         const expectedResult = Tests[expression];
         const result         = evaluate(expression);
