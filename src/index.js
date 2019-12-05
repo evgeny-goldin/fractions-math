@@ -1,8 +1,7 @@
 'use strict';
 
+const {Tests} = require('./tests');
 const readline = require('readline').createInterface({input: process.stdin, output: process.stdout});
-const NodeVersion = ((process.versions.node || '').split('.') || [])[0] || 0;
-const DevNodeVersion = 13;
 // 3/8, -7/11, 3_2/7, -5_12/17
 const FractionRegex = /^((-?\d+?)_)?((-?\d+?)\/(\d+?))?$/;
 const Operators = {
@@ -10,15 +9,8 @@ const Operators = {
     '-': sub
 };
 
-const {Tests} = require('./tests');
-
-if (NodeVersion < DevNodeVersion) {
-    console.warn(` -=-= This application was developed and tested using Node.js ${DevNodeVersion} - ` +
-                 `but your Node version is ${process.versions.node} =-=-`);
-}
-
 readline.on('close', () => {
-    console.log('\n-=-= Bye! =-=-');
+    console.log('\nBye!');
     readline.close();
 });
 
@@ -30,7 +22,7 @@ function gcd(a, b) {
 }
 
 /**
- * Simplifies the fraction by dividing both numerator and denominator by their corresponding gcd (Greatest Common Divisor)
+ * Normalizes the fraction by dividing both numerator and denominator by their corresponding gcd (Greatest Common Divisor)
  */
 function gcdFraction(fraction) {
     const [numerator, denominator] = fraction;
@@ -39,17 +31,18 @@ function gcdFraction(fraction) {
 }
 
 /**
- * Converts a token to fraction
+ * Converts a token to a fraction
  * @return number[] array - [numerator, denominator] or undefined if token provided isn't a valid fraction
  */
 function fraction(token) {
     const match = token.match(FractionRegex);
+
     if (! match) {
         const n = Number(token);
         return (Number.isNaN(n) ? undefined : [n, 1]);
     }
-    const [_, __, n1, ___, n2, n3] = match;
 
+    const [_, __, n1, ___, n2, n3] = match;
     const whole       = Number(n1 || 0);
     let numerator     = Number(n2 || 0);
     const denominator = Number(n3 || 1);
@@ -74,13 +67,9 @@ function add (a, b) {
 
     const g = gcd(denA, denB);
 
-    if (g === denA) {
-        return add([(numA * (denB / denA)), denB], b);
-    } else if (g === denB) {
-        return add(a, [(numB * (denA / denB)), denA]);
-    } else {
-        return gcdFraction([((numA * denB) + (numB * denA)), (denA * denB)]);
-    }
+    return ((g === denA) ? add([(numA * (denB / denA)), denB], b) :
+            (g === denB) ? add(a, [(numB * (denA / denB)), denA]) :
+                           gcdFraction([((numA * denB) + (numB * denA)), (denA * denB)]));
 }
 
 /**
@@ -91,18 +80,17 @@ function sub (a, b) {
 }
 
 /**
- * Converts the fraction to String
+ * Converts a fraction to a String
  */
 function toString(fraction) {
     const [numerator, denominator] = fraction;
-    const remainder = (numerator % denominator);
 
     return ((numerator   === 0)                 ? String(0) :
             (denominator === 1)                 ? String(numerator) :
             (numerator === denominator)         ? '1' :
             (Math.abs(numerator) < denominator) ? `${numerator}/${denominator}` :
-            (remainder === 0)                   ? String(numerator / denominator) :
-              `${parseInt(numerator / denominator)}_${Math.abs(numerator % denominator)}/${denominator}`);
+            ((numerator % denominator) === 0)   ? String(numerator / denominator) :
+                `${parseInt(numerator / denominator)}_${Math.abs(numerator) % denominator}/${denominator}`);
 }
 
 /**
@@ -123,13 +111,12 @@ function evaluate(expression) {
         return `${invalidExpression} - expected odd number of tokens but received ${tokens.length}`;
     }
 
-    const stack = [];
-    let error = undefined;
-    let operator = undefined;
+    let previousValue = undefined, operator = undefined, error = undefined;
 
     for (const token of tokens) {
+
         if (token in Operators) {
-            if (stack.length < 1) {
+            if (! previousValue) {
                 // "$ + 5 5"
                 error = `${invalidExpression} - there is a missing first operand before operator "${token}"`;
                 break;
@@ -147,27 +134,27 @@ function evaluate(expression) {
         const f = fraction(token);
 
         if (! f) {
-            // "$ 1/3 + something"
+            // "$ 1/something" or "$ 3/0"
             error = `${invalidExpression} - "${token}" is neither a known operator nor a valid fraction operand`;
             break;
         }
 
         if (operator) {
-            stack.push(Operators[operator](stack.pop(), f));
+            previousValue = Operators[operator](previousValue, f);
             operator = undefined;
-       } else if (stack.length < 1) {
-            stack.push(f);
+       } else if (! previousValue) {
+            previousValue = f;
         } else {
             // "$ 4 + 5 6 7"
             error = `${invalidExpression} - there is a missing operator between ` +
-                    `previous result "${toString(stack.pop())}" and operand "${toString(f)}"`;
+                    `previous result "${toString(previousValue)}" and operand "${toString(f)}"`;
             break;
         }
     }
 
-    return (error                ? error :
-            (stack.length === 1) ? toString(stack.pop()) :
-                                   invalidExpression);
+    return (error         ? error :
+            previousValue ? toString(previousValue) :
+                            invalidExpression);
 }
 
 /**
@@ -183,7 +170,7 @@ function runTests() {
         if (result === expectedResult) {
             process.stdout.write('.');
         } else {
-            throw new Error(`Failed test: eval("${expression}") = "${result}" and not "${expectedResult}"`);
+            throw new Error(`Failed test: evaluate("${expression}") = "${result}" and not "${expectedResult}"`);
         }
     });
 
@@ -192,7 +179,7 @@ function runTests() {
 }
 
 /**
- * REPL loop: reads user expression, evaluates it and displays the result
+ * REPL: reads user expression, evaluates it and displays the result
  */
 function readNextExpression() {
     readline.question('Enter your expression as "1 + -3/7 + 3_4/5 - 11/9" or press Ctrl+C to end your session $ ',
